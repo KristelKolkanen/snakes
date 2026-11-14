@@ -35,6 +35,9 @@ var trail: Array[Vector2] = []          # head positions, newest first
 var segments: Array[Vector2] = []       # computed body positions, head first
 var segment_radius := 18.0
 var width_factor := 1.0
+var world = null                        # assigned by Main
+var ai: BotAI = null                    # only bots have one
+var display_name := ""
 
 @onready var camera: Camera2D = $Camera2D
 
@@ -72,8 +75,8 @@ func _process(delta: float) -> void:
 	if not alive:
 		return
 
-	if not is_player:
-		_wander(delta)                  # temporary, replaced by real AI in Phase 4
+	if ai != null:
+		ai.update(delta)
 
 	# Turn toward the aim direction with a limited turn rate
 	var diff := angle_difference(heading, aim_angle)
@@ -128,17 +131,6 @@ func die() -> void:
 		return
 	alive = false
 	died.emit(self)
-
-
-# Temporary wandering for test snakes
-func _wander(delta: float) -> void:
-	wander_timer -= delta
-	if wander_timer <= 0.0:
-		wander_timer = randf_range(1.0, 3.0)
-		aim_angle = heading + randf_range(-1.2, 1.2)
-	if head.length() > Constants.ARENA_RADIUS - 600.0:
-		aim_angle = (-head).angle()     # turn back toward the center
-
 
 func _unhandled_input(event: InputEvent) -> void:
 	if not is_player:
@@ -195,3 +187,8 @@ func _draw() -> void:
 		var eye: Vector2 = head + fwd * 6.0 * width_factor + side * s * 8.0 * width_factor
 		draw_circle(eye, 6.0 * width_factor, Color.WHITE)
 		draw_circle(eye + fwd * 2.0 * width_factor, 3.0 * width_factor, Color.BLACK)
+		
+	if display_name != "":
+		var font := ThemeDB.fallback_font
+		draw_string(font, head + Vector2(-100.0, -segment_radius - 20.0), display_name,
+				HORIZONTAL_ALIGNMENT_CENTER, 200.0, 28, Color(1, 1, 1, 0.85))

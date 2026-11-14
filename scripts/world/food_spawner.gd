@@ -84,7 +84,31 @@ func eat_around(p: Vector2, radius: float) -> int:
 			if arr.is_empty():
 				cells.erase(key)
 	return total
-
+	
+# Returns the position of the most attractive orb within `radius`, or null if none.
+# Big orbs and close orbs score higher.
+func find_best(p: Vector2, radius: float):
+	var best = null
+	var best_score := 0.0
+	var r2 := radius * radius
+	var x0 := floori((p.x - radius) / CELL)
+	var x1 := floori((p.x + radius) / CELL)
+	var y0 := floori((p.y - radius) / CELL)
+	var y1 := floori((p.y + radius) / CELL)
+	for cx in range(x0, x1 + 1):
+		for cy in range(y0, y1 + 1):
+			var key := Vector2i(cx, cy)
+			if not cells.has(key):
+				continue
+			for o: Orb in cells[key]:
+				var d2 := o.pos.distance_squared_to(p)
+				if d2 > r2:
+					continue
+				var score := float(o.value) / (sqrt(d2) + 80.0)
+				if score > best_score:
+					best_score = score
+					best = o.pos
+	return best
 
 # A dead snake becomes a trail of orbs along its body
 func drop_from_snake(segs: Array[Vector2], color: Color) -> void:
