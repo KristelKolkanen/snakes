@@ -13,6 +13,7 @@ config_version=5
 config/name="Snakes"
 run/main_scene="uid://c3jw1qrkyh6rl"
 config/features=PackedStringArray("4.7", "Mobile")
+run/max_fps=60
 config/icon="res://icon.svg"
 
 [autoload]

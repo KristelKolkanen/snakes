@@ -15,13 +15,14 @@ const BOT_NAMES := [
 @onready var game_over = $GameOver
 
 var snakes: Array = []                   # every living snake, player included
-
+var pause_menu: PauseMenu
 
 func _ready() -> void:
 	var colors: Array = Skins.colors_of(SaveManager.skin_index)
 	snake.skin_colors = colors
 	snake.body_color = colors[0]
 	snake.food = food
+	snake.speed_scale = Constants.DIFFICULTY[Constants.difficulty]["speed"] if Constants.PLAYER_SPEED_SCALES else 1.0
 	snake.world = self
 	snake.display_name = SaveManager.player_name
 	snake.z_index = 1                    # player draws on top of the bots
@@ -31,6 +32,21 @@ func _ready() -> void:
 	overlay.world = self
 	for i in BOT_COUNT:
 		_spawn_bot()
+	pause_menu = PauseMenu.new()
+	add_child(pause_menu)
+	pause_menu.resumed.connect(_on_resumed)
+	
+	
+func _on_resumed() -> void:
+	snake.reset_input()
+	boost_button.reset()
+
+
+# Auto-pause when the app goes to the background (a call, the home swipe, or alt-tab on the Mac)
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_APPLICATION_FOCUS_OUT or what == NOTIFICATION_APPLICATION_PAUSED:
+		if pause_menu != null and is_instance_valid(snake) and snake.alive:
+			pause_menu.open()
 
 
 func _process(_delta: float) -> void:
@@ -101,6 +117,7 @@ func _on_snake_died(s) -> void:
 	snakes.erase(s)
 	s.visible = false
 	if s == snake:
+		pause_menu.hide_button()
 		var score: int = s.get_score()
 		var new_best := SaveManager.submit_score(score)
 		Input.vibrate_handheld(250)      # haptic buzz on a phone, does nothing on the Mac

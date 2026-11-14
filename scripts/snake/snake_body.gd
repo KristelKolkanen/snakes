@@ -39,6 +39,12 @@ var world = null                        # assigned by Main
 var ai: BotAI = null                    # only bots have one
 var display_name := ""
 var skin_colors: Array = []
+var speed_scale := 1.0
+
+var joy_index := -1
+var joy_active := false
+var joy_origin := Vector2.ZERO
+var joy_pos := Vector2.ZERO
 
 @onready var camera: Camera2D = $Camera2D
 
@@ -73,6 +79,7 @@ func _update_width(delta: float, instant := false) -> void:
 
 
 func _process(delta: float) -> void:
+	delta = minf(delta, 0.05)           # a hitch must never teleport the snake
 	if not alive:
 		return
 
@@ -81,13 +88,13 @@ func _process(delta: float) -> void:
 
 	# Turn toward the aim direction with a limited turn rate
 	var diff := angle_difference(heading, aim_angle)
-	var max_turn := turn_rate * delta
+	var max_turn := turn_rate * speed_scale * delta
 	heading += clampf(diff, -max_turn, max_turn)
 
 	# Boost: faster, but burns length and drops small orbs
 	var wants_boost := boost_requested or (is_player and Input.is_key_pressed(KEY_SPACE))
 	boosting = wants_boost and segment_count > min_segments
-	var target_speed := speed * (boost_multiplier if boosting else 1.0)
+	var target_speed := speed * speed_scale * (boost_multiplier if boosting else 1.0)
 	current_speed = move_toward(current_speed, target_speed, 1500.0 * delta)
 	if boosting:
 		boost_debt += boost_cost_per_sec * delta
@@ -124,9 +131,21 @@ func _process(delta: float) -> void:
 		var z := lerpf(1.0, min_zoom, t)
 		camera.zoom = camera.zoom.lerp(Vector2(z, z), delta * 2.0)
 
-	queue_redraw()
+	if is_player or _on_screen():
+		queue_redraw()
 
 
+func _on_screen() -> bool:
+	var view: Rect2 = get_canvas_transform().affine_inverse() * get_viewport_rect()
+	var reach := segments.size() * segment_spacing + segment_radius + 120.0
+	return view.grow(reach).has_point(head)
+	
+	
+func reset_input() -> void:
+	joy_index = -1
+	joy_active = false
+
+	
 func die() -> void:
 	if not alive:
 		return
@@ -176,8 +195,11 @@ func _update_segments() -> void:
 
 
 func _draw() -> void:
+	var view: Rect2 = (get_canvas_transform().affine_inverse() * get_viewport_rect()).grow(segment_radius + 120.0)
 	for i in range(segments.size() - 1, -1, -1):
 		var p := segments[i]
+		if not view.has_point(p):
+			continue
 		var c: Color = body_color
 		if skin_colors.size() > 1:
 			c = skin_colors[floori(i / 3.0) % skin_colors.size()]

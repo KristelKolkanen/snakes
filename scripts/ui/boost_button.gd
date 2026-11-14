@@ -8,11 +8,19 @@ var is_down := false
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var bottom := 100.0 + UIKit.safe_insets(self).w     # stays above the home bar
+
 	set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
 	offset_left = 50.0
 	offset_right = 250.0
-	offset_top = -300.0
-	offset_bottom = -100.0
+	offset_top = -(bottom + 200.0)
+	offset_bottom = -bottom
+
+
+func reset() -> void:
+	touch_index = -1
+	if is_down:
+		_set_down(false)
 
 
 # Handles its own touches so boosting and steering work with two fingers at once

@@ -40,3 +40,21 @@ static func make_button(text: String, color: Color, min_size := Vector2(640, 140
 	b.add_theme_stylebox_override("disabled", disabled)
 	b.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
 	return b
+	
+# Space (in game pixels) to keep free for the notch, rounded corners and home bar.
+# Returns Vector4(left, top, right, bottom). All zeros on the Mac.
+static func safe_insets(ctrl: Control) -> Vector4:
+	if not OS.has_feature("mobile"):
+		return Vector4.ZERO
+	var win := Vector2(DisplayServer.window_get_size())
+	if win.x <= 0.0 or win.y <= 0.0:
+		return Vector4.ZERO
+	var vp := ctrl.get_viewport().get_visible_rect().size
+	var sa := DisplayServer.get_display_safe_area()
+	var sx := vp.x / win.x
+	var sy := vp.y / win.y
+	return Vector4(
+		sa.position.x * sx,
+		sa.position.y * sy,
+		maxf(win.x - (sa.position.x + sa.size.x), 0.0) * sx,
+		maxf(win.y - (sa.position.y + sa.size.y), 0.0) * sy)

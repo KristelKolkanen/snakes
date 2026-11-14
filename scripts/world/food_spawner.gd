@@ -28,9 +28,11 @@ var cells := {}                          # Vector2i -> Array of Orb
 var count := 0
 var time := 0.0
 var rng := RandomNumberGenerator.new()
+var orb_tex: ImageTexture
 
 
 func _ready() -> void:
+	orb_tex = _make_orb_texture()
 	rng.randomize()
 	for i in TARGET_COUNT:
 		_spawn_ambient()
@@ -59,6 +61,24 @@ func add_orb(pos: Vector2, color: Color, value: int = 1) -> void:
 		cells[key] = []
 	cells[key].append(Orb.new(pos, color, value, time))
 	count += 1
+
+
+# Soft glow + dark rim + bright core in grayscale, so draw's color tints it
+func _make_orb_texture() -> ImageTexture:
+	var n := 64
+	var half := n / 2.0
+	var img := Image.create(n, n, false, Image.FORMAT_RGBA8)
+	for y in n:
+		for x in n:
+			var d := Vector2(x + 0.5 - half, y + 0.5 - half).length() / half
+			var c := Color(1, 1, 1, 0.16 * (1.0 - smoothstep(0.85, 1.0, d)))
+			if d < 0.5:
+				var edge := 1.0 - smoothstep(0.48, 0.5, d)
+				var core := 1.0 - smoothstep(0.39, 0.41, d)
+				var shade := lerpf(0.5, 1.0, core)
+				c = Color(shade, shade, shade, maxf(edge, c.a))
+			img.set_pixel(x, y, c)
+	return ImageTexture.create_from_image(img)
 
 
 # Removes every orb within `radius` of `p` and returns the total points eaten
@@ -136,7 +156,7 @@ func _draw() -> void:
 				continue
 			for o: Orb in cells[key]:
 				var grow_in := clampf((time - o.born) * 4.0, 0.0, 1.0)
-				var r := o.radius * grow_in * (1.0 + 0.08 * sin(time * 3.0 + o.phase))
-				draw_circle(o.pos, r * 2.0, Color(o.color, 0.16))
-				draw_circle(o.pos, r, o.color.darkened(0.5))
-				draw_circle(o.pos, r * 0.82, o.color)
+				var g := o.radius * grow_in * (1.0 + 0.08 * sin(time * 3.0 + o.phase)) * 2.0
+				if g < 1.0:
+					continue
+				draw_texture_rect(orb_tex, Rect2(o.pos.x - g, o.pos.y - g, g * 2.0, g * 2.0), false, o.color)

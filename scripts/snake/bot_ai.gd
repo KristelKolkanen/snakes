@@ -28,7 +28,8 @@ func configure(params: Dictionary) -> void:
 	think_interval = params["think"]
 	aggression = params["aggression"]
 	boost_skill = params["boost"]
-
+	if snake != null:
+		snake.speed_scale = params["speed"]
 
 func update(delta: float) -> void:
 	think_timer -= delta
