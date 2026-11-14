@@ -1,0 +1,11 @@
+[gd_scene format=3 uid="uid://c3jw1qrkyh6rl"]
+
+[ext_resource type="Script" uid="uid://byd51dv1enut0" path="res://scripts/world/grid.gd" id="1_hyk8p"]
+[ext_resource type="PackedScene" uid="uid://561kay65iyv7" path="res://scenes/snake/snake.tscn" id="2_iuonh"]
+
+[node name="Main" type="Node2D" unique_id=788028441]
+
+[node name="Grid" type="Node2D" parent="." unique_id=1769333149]
+script = ExtResource("1_hyk8p")
+
+[node name="Snake" parent="." unique_id=193572133 instance=ExtResource("2_iuonh")]

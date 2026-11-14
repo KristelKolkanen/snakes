@@ -1,0 +1,12 @@
+[gd_scene format=3 uid="uid://561kay65iyv7"]
+
+[ext_resource type="Script" uid="uid://cyl0xu67xxonl" path="res://scripts/snake/snake.gd" id="1_4ska3"]
+
+[node name="Snake" type="Node2D" unique_id=193572133]
+script = ExtResource("1_4ska3")
+turn_rate = 6.5
+segment_spacing = 20.0
+
+[node name="Camera2D" type="Camera2D" parent="." unique_id=851457438]
+position_smoothing_enabled = true
+position_smoothing_speed = 8.0

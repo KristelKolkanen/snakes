@@ -11,6 +11,7 @@ config_version=5
 [application]
 
 config/name="Snakes"
+run/main_scene="uid://c3jw1qrkyh6rl"
 config/features=PackedStringArray("4.7", "Mobile")
 config/icon="res://icon.svg"
 
@@ -36,3 +37,4 @@ pointing/emulate_touch_from_mouse=true
 
 rendering_device/driver.windows="d3d12"
 renderer/rendering_method="mobile"
+environment/defaults/default_clear_color=Color(0.05882353, 0.078431375, 0.14117648, 1)
