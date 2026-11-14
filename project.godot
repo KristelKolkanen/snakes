@@ -14,7 +14,9 @@ config/name="Snakes"
 run/main_scene="uid://c3jw1qrkyh6rl"
 config/features=PackedStringArray("4.7", "Mobile")
 run/max_fps=60
-config/icon="res://icon.svg"
+boot_splash/bg_color=Color(0.05882353, 0.078431375, 0.14117648, 1)
+boot_splash/show_image=false
+config/icon="uid://rog8c3jhbfvt"
 
 [autoload]
 
@@ -42,4 +44,5 @@ pointing/emulate_touch_from_mouse=true
 
 rendering_device/driver.windows="d3d12"
 renderer/rendering_method="mobile"
+textures/vram_compression/import_etc2_astc=true
 environment/defaults/default_clear_color=Color(0.05882353, 0.078431375, 0.14117648, 1)

@@ -40,6 +40,7 @@ func _ready() -> void:
 
 
 func _on_resumed() -> void:
+	snake.reset_input()
 	boost_button.reset()
 
 
@@ -99,11 +100,15 @@ func _head_hits_body(s, o) -> bool:
 	if s.head.distance_squared_to(o.head) > reach * reach:
 		return false
 	var hit: float = (s.segment_radius + o.segment_radius) * 0.7
-	var hit2: float = hit * hit
+	var sp: float = o.segment_spacing
 	var segs: Array = o.segments
-	for i in range(1, segs.size(), 2):
-		if s.head.distance_squared_to(segs[i]) < hit2:
+	var n := segs.size()
+	var i := 1
+	while i < n:
+		var d: float = s.head.distance_to(segs[i])
+		if d < hit:
 			return true
+		i += maxi(1, int((d - hit) / sp))     # can't be touching anything closer than this
 	return false
 
 

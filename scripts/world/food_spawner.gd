@@ -2,7 +2,10 @@ extends Node2D
 
 const CELL := 256.0
 const TARGET_COUNT := 20000
-const DEATH_DROP_FRACTION := 0.6
+const DEATH_DROP_FRACTION := 0.35
+const DEATH_ORB_LIFETIME := 40.0
+var sweep_keys: Array = []
+var sweep_pos := 0
 
 const PALETTE := [
 	Color("#ff4d6d"), Color("#ffd23f"), Color("#4cc9f0"), Color("#b25cff"),
@@ -16,6 +19,7 @@ class Orb:
 	var radius: float
 	var phase: float
 	var born: float
+	var expire := -1.0
 
 	func _init(p: Vector2, c: Color, v: int, t: float) -> void:
 		pos = p
@@ -46,6 +50,28 @@ func _process(delta: float) -> void:
 	for i in mini(missing, 25):
 		_spawn_ambient()
 	queue_redraw()
+	_sweep_expired()
+
+
+# Removes expired orbs a slice at a time, so there is no hitch
+func _sweep_expired() -> void:
+	if sweep_pos >= sweep_keys.size():
+		sweep_keys = cells.keys()
+		sweep_pos = 0
+	var end := mini(sweep_pos + 150, sweep_keys.size())
+	while sweep_pos < end:
+		var key = sweep_keys[sweep_pos]
+		sweep_pos += 1
+		if not cells.has(key):
+			continue
+		var arr: Array = cells[key]
+		for i in range(arr.size() - 1, -1, -1):
+			var o: Orb = arr[i]
+			if o.expire > 0.0 and time >= o.expire:
+				arr.remove_at(i)
+				count -= 1
+		if arr.is_empty():
+			cells.erase(key)
 
 
 func _spawn_ambient() -> void:
@@ -56,11 +82,14 @@ func _spawn_ambient() -> void:
 	add_orb(Vector2.from_angle(a) * r, col, 4 if big else 1)
 
 
-func add_orb(pos: Vector2, color: Color, value: int = 1) -> void:
+func add_orb(pos: Vector2, color: Color, value: int = 1, lifetime: float = -1.0) -> void:
 	var key := Vector2i(floori(pos.x / CELL), floori(pos.y / CELL))
 	if not cells.has(key):
 		cells[key] = []
-	cells[key].append(Orb.new(pos, color, value, time))
+	var o := Orb.new(pos, color, value, time)
+	if lifetime > 0.0:
+		o.expire = time + lifetime
+	cells[key].append(o)
 	count += 1
 
 
@@ -178,11 +207,10 @@ func drop_from_snake(segs: Array[Vector2], color: Color, score: float, spread: f
 		var p := segs[idx] + Vector2(rng.randf_range(-jitter, jitter), rng.randf_range(-jitter, jitter))
 		if p.length() > limit:
 			p = p.normalized() * limit
-		add_orb(p, color.lightened(rng.randf_range(0.0, 0.2)), value)
+		add_orb(p, color.lightened(rng.randf_range(0.0, 0.2)), value, DEATH_ORB_LIFETIME)
 
 
 func _draw() -> void:
-	# Only draw the orbs inside the camera view
 	var inv := get_canvas_transform().affine_inverse()
 	var view: Rect2 = (inv * get_viewport_rect()).grow(60.0)
 	var x0 := floori(view.position.x / CELL)
@@ -195,8 +223,15 @@ func _draw() -> void:
 			if not cells.has(key):
 				continue
 			for o: Orb in cells[key]:
+				var col: Color = o.color
+				if o.expire > 0.0:
+					var left := o.expire - time
+					if left <= 0.0:
+						continue
+					if left < 4.0:
+						col = Color(o.color, left / 4.0)
 				var grow_in := clampf((time - o.born) * 4.0, 0.0, 1.0)
 				var g := o.radius * grow_in * (1.0 + 0.08 * sin(time * 3.0 + o.phase)) * 2.0
 				if g < 1.0:
 					continue
-				draw_texture_rect(orb_tex, Rect2(o.pos.x - g, o.pos.y - g, g * 2.0, g * 2.0), false, o.color)
+				draw_texture_rect(orb_tex, Rect2(o.pos.x - g, o.pos.y - g, g * 2.0, g * 2.0), false, col)

@@ -37,6 +37,8 @@ func update(delta: float) -> void:
 		return
 	think_timer = think_interval * randf_range(0.8, 1.2)
 	_think()
+	if state == State.AVOID:
+		think_timer = minf(think_timer, 0.07)       # keep checking while in danger
 
 
 func _think() -> void:
@@ -97,8 +99,8 @@ func _think() -> void:
 func _danger_push(fwd: Vector2) -> Vector2:
 	var s = snake
 	var head: Vector2 = s.head
-	var look: float = 140.0 + s.current_speed * 0.4
-	var probes: Array[Vector2] = [head + fwd * look * 0.5, head + fwd * look]
+	var look: float = 200.0 + s.current_speed * 0.5
+	var probes: Array[Vector2] = [head + fwd * look * 0.35, head + fwd * look * 0.7, head + fwd * look]
 	var push := Vector2.ZERO
 	for o in world.snakes:
 		if o == s or not o.alive:
@@ -106,16 +108,23 @@ func _danger_push(fwd: Vector2) -> Vector2:
 		var reach: float = o.segments.size() * o.segment_spacing + look + 200.0
 		if head.distance_squared_to(o.head) > reach * reach:
 			continue
-		var thr: float = s.segment_radius + o.segment_radius + 25.0
+		var thr: float = s.segment_radius + o.segment_radius + 45.0
 		var thr2: float = thr * thr
+		var sp: float = o.segment_spacing
 		var segs: Array = o.segments
-		for i in range(0, segs.size(), 2):
+		var n := segs.size()
+		var i := 0
+		while i < n:
 			var seg: Vector2 = segs[i]
+			var dmin2 := INF
 			for p in probes:
 				var d2: float = p.distance_squared_to(seg)
 				if d2 < thr2:
 					var d: float = maxf(sqrt(d2), 1.0)
 					push += (p - seg) / d * (1.0 - d / thr)
+				dmin2 = minf(dmin2, d2)
+			# Segments are `sp` apart along the body, so when far away we can skip some
+			i += maxi(1, int((sqrt(dmin2) - thr) / sp))
 	return push
 
 

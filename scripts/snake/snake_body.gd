@@ -5,6 +5,14 @@ signal died(snake)
 const LOD_DISTANCE := 3200.0            # bots farther than this from the player run in "low detail"
 const LOD_FRAMES := 3                   # ...updating once every this many frames
 
+const STEER_RADIUS := 110.0              # how far the finger can go before the anchor follows it
+const STEER_DEADZONE := 14.0             # movements smaller than this are ignored
+
+var steer_index := -1
+var steer_active := false
+var steer_origin := Vector2.ZERO
+var steer_pos := Vector2.ZERO
+
 @export var is_player := true
 @export var speed := 280.0
 @export var boost_multiplier := 2.0
@@ -23,6 +31,8 @@ const LOD_FRAMES := 3                   # ...updating once every this many frame
 @export var boost_drop_fraction := 0.3          # share of lost points that drops as orbs (0.33 = one third)
 @export var magnet_extra := 40.0                # magnet reaches this far beyond the normal pickup area
 @export var body_color := Color("#5eead4")
+@export var food_gain := 0.6            # share of an orb's points you actually get
+@export var gain_falloff := 15000.0     # bigger snakes gain less (half the gain at this score)
 
 var food = null                         # assigned by Main
 var world = null                        # assigned by Main
@@ -136,11 +146,13 @@ func _process(delta: float) -> void:
 			if food != null and not segments.is_empty():
 				var tail := segments[segments.size() - 1]
 				var jitter := Vector2(randf_range(-10.0, 10.0), randf_range(-10.0, 10.0)) * width_factor
-				food.add_orb(tail + jitter, body_color, value)
+				food.add_orb(tail + jitter, body_color, value, 30.0)
 
 	# Move and record the trail
 	head += Vector2.from_angle(heading) * current_speed * delta
-	trail.push_front(head)
+	trail[0] = head                      # trail[0] always follows the head exactly
+	if head.distance_squared_to(trail[1]) >= 81.0:
+		trail.push_front(head)           # a new trail point only every ~9 px
 
 	# Touching the arena edge kills the snake
 	if head.length() + segment_radius >= Constants.ARENA_RADIUS:
@@ -152,7 +164,7 @@ func _process(delta: float) -> void:
 		food.attract(head, (eat_radius + magnet_extra) * width_factor, delta)
 		var gained: int = food.eat_around(head, eat_radius * width_factor)
 		if gained > 0:
-			points += gained
+			points += gained * food_gain / (1.0 + points / gain_falloff)
 
 	segment_count = _segments_for_points()
 	_update_width(delta)
@@ -197,22 +209,30 @@ func die() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if not is_player:
 		return
-	if event is InputEventScreenDrag:
-		_aim_at(event.position)
-	elif event is InputEventScreenTouch:
-		if event.pressed:
-			_aim_at(event.position)
-	elif event is InputEventMouseMotion and not OS.has_feature("mobile"):
-		_aim_at(event.position)
+	if event is InputEventScreenTouch:
+		if event.pressed and steer_index == -1:
+			steer_index = event.index
+			steer_origin = event.position
+			steer_pos = event.position
+			steer_active = true
+		elif not event.pressed and event.index == steer_index:
+			reset_input()
+	elif event is InputEventScreenDrag:
+		if event.index == steer_index:
+			steer_pos = event.position
+			var d := steer_pos - steer_origin
+			if d.length() > STEER_RADIUS:
+				steer_origin = steer_pos - d.normalized() * STEER_RADIUS
+				d = steer_pos - steer_origin
+			if d.length() > STEER_DEADZONE:
+				aim_angle = d.angle()
 	elif event is InputEventKey and event.pressed and event.keycode == KEY_G:
 		points += 250.0                  # temporary test: G adds 250 points
 
 
-func _aim_at(screen_pos: Vector2) -> void:
-	var head_screen := get_viewport().canvas_transform * head
-	var d := screen_pos - head_screen
-	if d.length() > 20.0:
-		aim_angle = d.angle()
+func reset_input() -> void:
+	steer_index = -1
+	steer_active = false
 
 
 func _update_segments() -> void:
