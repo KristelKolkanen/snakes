@@ -1,0 +1,7 @@
+.godot/
+*.apk
+*.aab
+*.ipa
+export_credentials.cfg
+.DS_Store
+
