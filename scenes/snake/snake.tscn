@@ -4,8 +4,6 @@
 
 [node name="Snake" type="Node2D" unique_id=193572133]
 script = ExtResource("1_4ska3")
-turn_rate = 6.5
-segment_spacing = 20.0
 
 [node name="Camera2D" type="Camera2D" parent="." unique_id=851457438]
 position_smoothing_enabled = true
