@@ -3,6 +3,7 @@
 [ext_resource type="Script" uid="uid://cswwyejvxu6wf" path="res://scripts/world/arena.gd" id="1_iuonh"]
 [ext_resource type="Script" uid="uid://c05xlj0o0iric" path="res://scripts/core/main.gd" id="1_l3cfh"]
 [ext_resource type="PackedScene" uid="uid://561kay65iyv7" path="res://scenes/snake/snake.tscn" id="2_iuonh"]
+[ext_resource type="Script" uid="uid://2w6l8vn4bkwu" path="res://scripts/world/food_spawner.gd" id="3_6q06x"]
 [ext_resource type="PackedScene" uid="uid://da4yi3tlha8oi" path="res://scenes/ui/hud.tscn" id="4_6q06x"]
 
 [node name="Main" type="Node2D" unique_id=788028441]
@@ -10,6 +11,9 @@ script = ExtResource("1_l3cfh")
 
 [node name="Arena" type="Node2D" parent="." unique_id=123977910]
 script = ExtResource("1_iuonh")
+
+[node name="Food" type="Node2D" parent="." unique_id=819306511]
+script = ExtResource("3_6q06x")
 
 [node name="Snake" parent="." unique_id=193572133 instance=ExtResource("2_iuonh")]
 
