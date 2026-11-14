@@ -74,7 +74,7 @@ func _think() -> void:
 		var lead: float = clampf(dist * 0.7, 100.0, 450.0)
 		var aim_point: Vector2 = o.head + Vector2.from_angle(o.heading) * lead
 		s.aim_angle = (aim_point - head).angle()
-		if dist < 500.0 and s.segment_count > s.min_segments + 8 and randf() < boost_skill:
+		if dist < 500.0 and s.points > s.min_boost_points + 40.0 and randf() < boost_skill:
 			s.boost_requested = true
 		return
 
@@ -122,7 +122,7 @@ func _danger_push(fwd: Vector2) -> Vector2:
 func _valid_prey(o) -> bool:
 	if not is_instance_valid(o) or not o.alive:
 		return false
-	if o.segment_count >= snake.segment_count * 0.85:
+	if o.points >= snake.points * 0.85:
 		return false
 	return snake.head.distance_to(o.head) < vision * 1.4
 

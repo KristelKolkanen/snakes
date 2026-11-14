@@ -1,7 +1,8 @@
 extends Node2D
 
 const CELL := 256.0
-const TARGET_COUNT := 1800
+const TARGET_COUNT := 20000
+const DEATH_DROP_FRACTION := 0.6
 
 const PALETTE := [
 	Color("#ff4d6d"), Color("#ffd23f"), Color("#4cc9f0"), Color("#b25cff"),
@@ -21,7 +22,7 @@ class Orb:
 		color = c
 		value = v
 		born = t
-		radius = clampf(5.0 + sqrt(float(v)) * 2.5, 6.0, 18.0)
+		radius = clampf(5.0 + sqrt(float(v)) * 3.0, 6.0, 50.0)
 		phase = randf() * TAU
 
 var cells := {}                          # Vector2i -> Array of Orb
@@ -42,7 +43,7 @@ func _process(delta: float) -> void:
 	time += delta
 	# Refill ambient orbs a few per frame as they get eaten
 	var missing := TARGET_COUNT - count
-	for i in mini(missing, 8):
+	for i in mini(missing, 25):
 		_spawn_ambient()
 	queue_redraw()
 
@@ -105,6 +106,39 @@ func eat_around(p: Vector2, radius: float) -> int:
 				cells.erase(key)
 	return total
 	
+	
+# Light magnet: orbs within `radius` of `p` drift toward it. Weak at the edge, stronger up close.
+func attract(p: Vector2, radius: float, delta: float) -> void:
+	var r2 := radius * radius
+	var x0 := floori((p.x - radius) / CELL)
+	var x1 := floori((p.x + radius) / CELL)
+	var y0 := floori((p.y - radius) / CELL)
+	var y1 := floori((p.y + radius) / CELL)
+	for cx in range(x0, x1 + 1):
+		for cy in range(y0, y1 + 1):
+			var key := Vector2i(cx, cy)
+			if not cells.has(key):
+				continue
+			var arr: Array = cells[key]
+			var i := arr.size() - 1
+			while i >= 0:
+				var o: Orb = arr[i]
+				var d2 := o.pos.distance_squared_to(p)
+				if d2 < r2 and d2 > 1.0:
+					var d := sqrt(d2)
+					var pull := lerpf(120.0, 420.0, 1.0 - d / radius)    # pixels per second
+					o.pos += (p - o.pos) / d * minf(pull * delta, d)
+					var nk := Vector2i(floori(o.pos.x / CELL), floori(o.pos.y / CELL))
+					if nk != key:                  # the orb crossed into another grid cell
+						arr.remove_at(i)
+						if not cells.has(nk):
+							cells[nk] = []
+						cells[nk].append(o)
+				i -= 1
+			if arr.is_empty():
+				cells.erase(key)
+	
+	
 # Returns the position of the most attractive orb within `radius`, or null if none.
 # Big orbs and close orbs score higher.
 func find_best(p: Vector2, radius: float):
@@ -130,15 +164,21 @@ func find_best(p: Vector2, radius: float):
 					best = o.pos
 	return best
 
-# A dead snake becomes a trail of orbs along its body
-func drop_from_snake(segs: Array[Vector2], color: Color) -> void:
-	var step := maxi(1, ceili(segs.size() / 120.0))   # cap the orb count on huge snakes
+# A dead snake becomes orbs along its body. Bigger snakes drop up to 160 orbs, each worth more.
+func drop_from_snake(segs: Array[Vector2], color: Color, score: float, spread: float) -> void:
+	if segs.is_empty():
+		return
+	var total := score * DEATH_DROP_FRACTION
+	var count := clampi(int(total / 12.0), 12, 160)
+	var value := maxi(1, roundi(total / count))
 	var limit := Constants.ARENA_RADIUS - 40.0
-	for i in range(0, segs.size(), step):
-		var p := segs[i] + Vector2(rng.randf_range(-14.0, 14.0), rng.randf_range(-14.0, 14.0))
+	var jitter := spread * 0.6 + 8.0
+	for k in count:
+		var idx := mini(int(float(k) * segs.size() / count), segs.size() - 1)
+		var p := segs[idx] + Vector2(rng.randf_range(-jitter, jitter), rng.randf_range(-jitter, jitter))
 		if p.length() > limit:
 			p = p.normalized() * limit
-		add_orb(p, color.lightened(rng.randf_range(0.0, 0.2)), 3 * step)
+		add_orb(p, color.lightened(rng.randf_range(0.0, 0.2)), value)
 
 
 func _draw() -> void:

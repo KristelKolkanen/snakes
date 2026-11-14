@@ -2,7 +2,8 @@ extends Node2D
 
 signal died(snake)
 
-const POINTS_PER_SEGMENT := 5
+const LOD_DISTANCE := 3200.0            # bots farther than this from the player run in "low detail"
+const LOD_FRAMES := 3                   # ...updating once every this many frames
 
 @export var is_player := true
 @export var speed := 280.0
@@ -10,41 +11,42 @@ const POINTS_PER_SEGMENT := 5
 @export var turn_rate := 6.5            # radians per second
 @export var segment_spacing := 20.0
 @export var base_radius := 18.0         # radius of a fresh snake
-@export var max_width_factor := 2.2     # widest a snake can get (x base_radius)
-@export var width_growth := 0.008       # extra width per segment beyond the start length
-@export var min_zoom := 0.85            # most the camera ever zooms out    # radians per second
+@export var max_width_factor := 3.2     # widest a snake can get (x base_radius)
+@export var width_growth := 0.018       # width gained as the score grows
+@export var min_zoom := 0.85            # most the camera ever zooms out
 @export var eat_radius := 44.0
-@export var start_segments := 12
-@export var min_segments := 10          # boost stops at this length
-@export var boost_cost_per_sec := 2.0   # segments lost per second of boost
+@export var start_points := 60.0        # 60 points = 12 segments
+@export var min_segments := 10
+@export var min_boost_points := 50.0    # boost stops at this score
+@export var boost_segments_per_sec := 2.5       # body segments lost per second of boost...
+@export var boost_segment_fraction := 0.012     # ...plus this fraction of the current length
+@export var boost_drop_fraction := 0.3          # share of lost points that drops as orbs (0.33 = one third)
+@export var magnet_extra := 40.0                # magnet reaches this far beyond the normal pickup area
 @export var body_color := Color("#5eead4")
 
 var food = null                         # assigned by Main
-var head := Vector2.ZERO
-var heading := -PI / 2.0
-var aim_angle := -PI / 2.0
-var current_speed := 0.0
-var segment_count := 0
-var growth_points := 0
-var boost_requested := false
-var boosting := false
-var boost_debt := 0.0
-var alive := true
-var wander_timer := 0.0
-var trail: Array[Vector2] = []          # head positions, newest first
-var segments: Array[Vector2] = []       # computed body positions, head first
-var segment_radius := 18.0
-var width_factor := 1.0
 var world = null                        # assigned by Main
 var ai: BotAI = null                    # only bots have one
 var display_name := ""
 var skin_colors: Array = []
 var speed_scale := 1.0
 
-var joy_index := -1
-var joy_active := false
-var joy_origin := Vector2.ZERO
-var joy_pos := Vector2.ZERO
+var head := Vector2.ZERO
+var heading := -PI / 2.0
+var aim_angle := -PI / 2.0
+var current_speed := 0.0
+var points := 0.0
+var segment_count := 0
+var boost_requested := false
+var boosting := false
+var boost_debt := 0.0
+var alive := true
+var segment_radius := 18.0
+var width_factor := 1.0
+var lod_accum := 0.0
+var lod_phase := 0
+var trail: Array[Vector2] = []          # head positions, newest first
+var segments: Array[Vector2] = []       # computed body positions, head first
 
 @onready var camera: Camera2D = $Camera2D
 
@@ -53,35 +55,58 @@ func _ready() -> void:
 	if not is_player:
 		camera.queue_free()
 		camera = null
-	segment_count = start_segments
+	points = start_points
+	segment_count = _segments_for_points()
+	lod_phase = get_instance_id() % LOD_FRAMES
 	head = position
 	position = Vector2.ZERO             # all positions are world coordinates
 	aim_angle = heading
-	current_speed = speed
-	var back := -Vector2.from_angle(heading)
-	for i in range(int(segment_count * segment_spacing / 4.0) + 4):
-		trail.append(head + back * i * 4.0)
+	current_speed = speed * speed_scale
+	_build_start_trail()
 	_update_segments()
 	_update_width(0.0, true)
 
 
 func get_score() -> int:
-	return segment_count * POINTS_PER_SEGMENT + growth_points
+	return int(points)
 
 
 func set_boost_requested(active: bool) -> void:
 	boost_requested = active
-	
-func _update_width(delta: float, instant := false) -> void:
-	var target := clampf(1.0 + (segment_count - start_segments) * width_growth, 1.0, max_width_factor)
-	width_factor = target if instant else lerpf(width_factor, target, delta * 4.0)
-	segment_radius = base_radius * width_factor
+
+
+func _segments_for_points() -> int:
+	return maxi(min_segments, Constants.segments_for(points))
+
+
+# Short snakes start in a straight line, long ones start coiled in an arc so they fit in the arena
+func _build_start_trail() -> void:
+	var step := 4.0
+	var count := int(segment_count * segment_spacing / step) + 4
+	var length := count * step
+	var fwd := Vector2.from_angle(heading)
+	if length < Constants.COIL_LENGTH:
+		for i in count:
+			trail.append(head - fwd * i * step)
+	else:
+		var rho := length / 4.5
+		var c := head + fwd.orthogonal() * rho
+		for i in count:
+			trail.append(c + (head - c).rotated(i * step / rho))
 
 
 func _process(delta: float) -> void:
 	delta = minf(delta, 0.05)           # a hitch must never teleport the snake
 	if not alive:
 		return
+
+	# Far-away bots only update every few frames to save CPU
+	if not is_player and points < 3000.0 and _is_far():
+		lod_accum += delta
+		if (Engine.get_process_frames() + lod_phase) % LOD_FRAMES != 0:
+			return
+		delta = lod_accum
+		lod_accum = 0.0
 
 	if ai != null:
 		ai.update(delta)
@@ -91,18 +116,27 @@ func _process(delta: float) -> void:
 	var max_turn := turn_rate * speed_scale * delta
 	heading += clampf(diff, -max_turn, max_turn)
 
-	# Boost: faster, but burns length and drops small orbs
+	# Boost: faster, but burns points and drops orbs from the tail
 	var wants_boost := boost_requested or (is_player and Input.is_key_pressed(KEY_SPACE))
-	boosting = wants_boost and segment_count > min_segments
+	boosting = wants_boost and points > min_boost_points
 	var target_speed := speed * speed_scale * (boost_multiplier if boosting else 1.0)
 	current_speed = move_toward(current_speed, target_speed, 1500.0 * delta)
 	if boosting:
-		boost_debt += boost_cost_per_sec * delta
-		while boost_debt >= 1.0:
-			boost_debt -= 1.0
-			segment_count = maxi(segment_count - 1, min_segments)
+		var seg_f := Constants.segments_f(points)
+		var loss := (boost_segments_per_sec + seg_f * boost_segment_fraction) * delta
+		var new_points := maxf(Constants.points_for_segments(seg_f - loss), min_boost_points)
+		boost_debt += (points - new_points) * boost_drop_fraction
+		points = new_points
+		# Drop orbs of mixed sizes until the owed amount is paid off
+		var base := maxf(2.0, points / 800.0)
+		while boost_debt >= base * 0.5:
+			var v := base * (randf_range(0.4, 0.9) if randf() < 0.6 else randf_range(1.2, 2.5))
+			var value := maxi(1, roundi(v))
+			boost_debt -= value
 			if food != null and not segments.is_empty():
-				food.add_orb(segments[segments.size() - 1], body_color, 3)
+				var tail := segments[segments.size() - 1]
+				var jitter := Vector2(randf_range(-10.0, 10.0), randf_range(-10.0, 10.0)) * width_factor
+				food.add_orb(tail + jitter, body_color, value)
 
 	# Move and record the trail
 	head += Vector2.from_angle(heading) * current_speed * delta
@@ -113,15 +147,14 @@ func _process(delta: float) -> void:
 		die()
 		return
 
-	# Eat orbs: every 5 points of food adds one segment
+	# Eat orbs: a light magnet pulls nearby ones in, then anything in the mouth is eaten
 	if food != null:
+		food.attract(head, (eat_radius + magnet_extra) * width_factor, delta)
 		var gained: int = food.eat_around(head, eat_radius * width_factor)
 		if gained > 0:
-			growth_points += gained
-			while growth_points >= POINTS_PER_SEGMENT:
-				growth_points -= POINTS_PER_SEGMENT
-				segment_count += 1
+			points += gained
 
+	segment_count = _segments_for_points()
 	_update_width(delta)
 	_update_segments()
 
@@ -135,22 +168,31 @@ func _process(delta: float) -> void:
 		queue_redraw()
 
 
+func _is_far() -> bool:
+	if world == null or not is_instance_valid(world.snake):
+		return false
+	return head.distance_squared_to(world.snake.head) > LOD_DISTANCE * LOD_DISTANCE
+
+
 func _on_screen() -> bool:
 	var view: Rect2 = get_canvas_transform().affine_inverse() * get_viewport_rect()
 	var reach := segments.size() * segment_spacing + segment_radius + 120.0
 	return view.grow(reach).has_point(head)
-	
-	
-func reset_input() -> void:
-	joy_index = -1
-	joy_active = false
 
-	
+
+func _update_width(delta: float, instant := false) -> void:
+	var growth := sqrt(points + 100.0) - sqrt(160.0)      # 0 for a fresh snake
+	var target := clampf(1.0 + growth * width_growth, 1.0, max_width_factor)
+	width_factor = target if instant else lerpf(width_factor, target, minf(delta * 4.0, 1.0))
+	segment_radius = base_radius * width_factor
+
+
 func die() -> void:
 	if not alive:
 		return
 	alive = false
 	died.emit(self)
+
 
 func _unhandled_input(event: InputEvent) -> void:
 	if not is_player:
@@ -163,7 +205,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event is InputEventMouseMotion and not OS.has_feature("mobile"):
 		_aim_at(event.position)
 	elif event is InputEventKey and event.pressed and event.keycode == KEY_G:
-		segment_count += 5               # temporary test: G grows the snake
+		points += 250.0                  # temporary test: G adds 250 points
 
 
 func _aim_at(screen_pos: Vector2) -> void:
@@ -214,7 +256,7 @@ func _draw() -> void:
 		var eye: Vector2 = head + fwd * 6.0 * width_factor + side * s * 8.0 * width_factor
 		draw_circle(eye, 6.0 * width_factor, Color.WHITE)
 		draw_circle(eye + fwd * 2.0 * width_factor, 3.0 * width_factor, Color.BLACK)
-		
+
 	if display_name != "":
 		var font := ThemeDB.fallback_font
 		draw_string(font, head + Vector2(-100.0, -segment_radius - 20.0), display_name,
