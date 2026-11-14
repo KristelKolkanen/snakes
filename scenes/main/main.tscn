@@ -5,6 +5,7 @@
 [ext_resource type="PackedScene" uid="uid://561kay65iyv7" path="res://scenes/snake/snake.tscn" id="2_iuonh"]
 [ext_resource type="Script" uid="uid://2w6l8vn4bkwu" path="res://scripts/world/food_spawner.gd" id="3_6q06x"]
 [ext_resource type="PackedScene" uid="uid://da4yi3tlha8oi" path="res://scenes/ui/hud.tscn" id="4_6q06x"]
+[ext_resource type="PackedScene" uid="uid://prho5kw0beb8" path="res://scenes/ui/game_over.tscn" id="6_ow5a4"]
 
 [node name="Main" type="Node2D" unique_id=788028441]
 script = ExtResource("1_l3cfh")
@@ -18,3 +19,5 @@ script = ExtResource("3_6q06x")
 [node name="Snake" parent="." unique_id=193572133 instance=ExtResource("2_iuonh")]
 
 [node name="HUD" parent="." unique_id=1042299652 instance=ExtResource("4_6q06x")]
+
+[node name="GameOver" parent="." unique_id=561041393 instance=ExtResource("6_ow5a4")]

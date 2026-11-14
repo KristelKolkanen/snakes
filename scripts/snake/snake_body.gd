@@ -38,6 +38,7 @@ var width_factor := 1.0
 var world = null                        # assigned by Main
 var ai: BotAI = null                    # only bots have one
 var display_name := ""
+var skin_colors: Array = []
 
 @onready var camera: Camera2D = $Camera2D
 
@@ -175,11 +176,15 @@ func _update_segments() -> void:
 
 
 func _draw() -> void:
-	var col := body_color.lightened(0.25) if boosting else body_color
 	for i in range(segments.size() - 1, -1, -1):
 		var p := segments[i]
-		draw_circle(p, segment_radius, col.darkened(0.4))
-		draw_circle(p, segment_radius * 0.85, col)
+		var c: Color = body_color
+		if skin_colors.size() > 1:
+			c = skin_colors[floori(i / 3.0) % skin_colors.size()]
+		if boosting:
+			c = c.lightened(0.25)
+		draw_circle(p, segment_radius, c.darkened(0.4))
+		draw_circle(p, segment_radius * 0.85, c)
 
 	var fwd := Vector2.from_angle(heading)
 	var side := fwd.orthogonal()

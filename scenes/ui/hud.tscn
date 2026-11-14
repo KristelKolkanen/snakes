@@ -1,6 +1,7 @@
 [gd_scene format=3 uid="uid://da4yi3tlha8oi"]
 
 [ext_resource type="Script" uid="uid://bve3ff7ng2ntq" path="res://scripts/ui/boost_button.gd" id="1_0mwgc"]
+[ext_resource type="Script" uid="uid://ki5in68o4n48" path="res://scripts/ui/hud_overlay.gd" id="2_hqnrr"]
 
 [node name="HUD" type="CanvasLayer" unique_id=1042299652]
 
@@ -10,3 +11,10 @@ anchors_preset = 0
 offset_right = 40.0
 offset_bottom = 40.0
 script = ExtResource("1_0mwgc")
+
+[node name="Overlay" type="Control" parent="." unique_id=589142393]
+layout_mode = 3
+anchors_preset = 0
+offset_right = 40.0
+offset_bottom = 40.0
+script = ExtResource("2_hqnrr")
